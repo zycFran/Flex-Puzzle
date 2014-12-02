@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+                xmlns:s="library://ns.adobe.com/flex/spark"
+                xmlns:mx="library://ns.adobe.com/flex/mx"
+                autoDrawBackground="false"
+                creationComplete="init_item()">
+    <fx:Script>
+		<![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import mx.core.DragSource;
+        import mx.core.IUIComponent;
+        import mx.managers.DragManager;
+
+        import utils.Tool;
+
+        private function init_item():void {
+            trace('init_PatternItem');
+        }
+        private function dragHandler(event:MouseEvent):void {
+            event.stopPropagation();
+            var iu:IUIComponent = event.currentTarget as IUIComponent;
+            var dragSource:DragSource = new DragSource();
+            dragSource.addData( iu, 'PATTERN' );
+
+            data.raw['width'] = ImageUnit.sourceWidth;
+            data.raw['height'] = ImageUnit.sourceHeight;
+
+            dragSource.addData( data.raw, 'raw');
+            //  定义拖拽图标(用于第二副图片的拖拽)
+            var di:Image = new Image();
+            di = Tool.cloneImage(iu, width * 2, height * 2);
+            DragManager.doDrag( iu, dragSource, event, di);
+        }
+        // 移除花型
+        private function removeHandler(event:MouseEvent):void{
+            var ev:PieceEvent = new PieceEvent(PieceEvent.PATTERN_REMOVE);
+            ev.patternRaw = data.raw;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        private function mouseOverHandler(b:Boolean):void{
+            removeImage.visible = removeImage.includeInLayout = b;
+        }
+        ]]>
+	</fx:Script>
+    <s:states>
+    </s:states>
+    <s:BorderContainer backgroundAlpha="0" borderVisible="false" id="bc" width="80" height="80"
+                       rollOver="mouseOverHandler(true)"
+                       rollOut="mouseOverHandler(false)"
+                       creationComplete="bc.contentGroup.clipAndEnableScrolling = false">
+        <s:Image id="ImageUnit"
+                useHandCursor="true" buttonMode="true"
+                source="{data.source}" width="80" height="80"
+                backgroundAlpha="0"
+                mouseDown="dragHandler(event)"
+                fillMode="scale" />
+        <s:Image id="removeImage" width="20" height="20" right="0" top="0"
+            source="@Embed(source='../images/btn2_56.png')"
+            click="removeHandler(event)"
+                visible="false" includeInLayout="false"/>
+    </s:BorderContainer>
+
+</s:ItemRenderer>

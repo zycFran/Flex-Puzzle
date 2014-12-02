@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+                xmlns:s="library://ns.adobe.com/flex/spark"
+                creationComplete="info_init()"
+                width="100%" height="100%"
+                xmlns:mx="library://ns.adobe.com/flex/mx">
+    <fx:Script>
+		<![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Global;
+
+        private function info_init():void{
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.PANEL_TOGGLE, function(e:PieceEvent):void{
+//                InfoPanel.visible = e.toggle;
+                e.scale = e.scale || 1;
+                e.rotate = e.rotate || 0;
+                scaleHSlider.value = int(e.scale * 100);
+                rotateHSlider.value = int(e.rotate);
+            });
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.CHANGE_SIZE_SINGLE, function(e:PieceEvent):void{
+                scaleHSlider.value = int(e.scale * 100);
+            });
+        }
+        private function changeSize():void{
+            var s:Number = Number(((Number(scaleHSlider.value)) / 100).toFixed(2));
+            var ev:PieceEvent = new PieceEvent(PieceEvent.CHANGE_SIZE);
+            ev.scale = s;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+        private function changeRotate():void{
+            var s:Number = Math.ceil(Number(rotateHSlider.value));
+            var ev:PieceEvent = new PieceEvent(PieceEvent.CHANGE_ROTATE);
+            ev.rotate = s;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+        private function removePattern():void{
+//            InfoPanel.visible = false;
+            var ev:PieceEvent = new PieceEvent(PieceEvent.REMOVE_PATTERN);
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        private function myDataTipFunc(val:String):String {
+            return Math.ceil(Number(val)) + "%";
+        }
+
+        private function myDataTipFunc2(val:String):String {
+            return Math.ceil(Number(val)) + "°";
+        }
+
+        private function clearHandler():void{
+            var ev2:PieceEvent = new PieceEvent(PieceEvent.CLEAR_STATE);
+            Dispatcher.getInstance().dispatchEvent(ev2);
+        }
+
+        private function saveHandler(saveType:String):void{
+            var ev:PieceEvent = new PieceEvent(PieceEvent.SAVE_IMAGE);
+            ev.saveType = saveType;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+        ]]>
+	</fx:Script>
+
+    <s:Panel title="图片调整"
+             id="InfoPanel"
+             visible="true"
+             fontSize="14"
+             height="100%"
+             width="100%" minHeight="145"
+             cornerRadius="5"
+            >
+        <s:VGroup  width="100%"
+                   height="100%"
+                   paddingLeft="10"
+                   paddingRight="10"
+                   paddingTop="10"
+                   paddingBottom="20">
+            <s:VGroup gap="0" width="100%">
+                <s:HGroup width="100%" height="100%"
+                          paddingLeft="10"
+                          paddingRight="10"
+                          paddingTop="10">
+                    <s:Label text="缩放"/>
+                    <s:Label text="{scaleHSlider.value}%"
+                             paddingLeft="100" />
+                </s:HGroup>
+                <mx:HSlider id="scaleHSlider"
+                            width="180"
+                            minimum="{int(Global.minScale * 100)}" maximum="{int(Global.maxScale * 100)}" value="100"
+                            dataTipPlacement="top"
+                            tickColor="black"
+                            snapInterval="1"
+                            allowTrackClick="true"
+                            liveDragging="true"
+                            dataTipFormatFunction="myDataTipFunc"
+                            change="changeSize();"/>
+            </s:VGroup>
+            <s:VGroup gap="0" width="100%">
+                <s:HGroup width="100%" height="100%"
+                          paddingLeft="10"
+                          paddingRight="10"
+                          paddingTop="10">
+                    <s:Label text="旋转"/>
+                    <s:Label text="{rotateHSlider.value}°"
+                             paddingLeft="110"/>
+                </s:HGroup>
+                <mx:HSlider id="rotateHSlider"
+                            width="180"
+                            minimum="0" maximum="360" value="0"
+                            dataTipPlacement="top"
+                            tickColor="black"
+                            snapInterval="1"
+                            dataTipFormatFunction="myDataTipFunc2"
+                            allowTrackClick="true"
+                            liveDragging="true"
+                            change="changeRotate();"/>
+            </s:VGroup>
+            <s:Spacer height="10"/>
+            <s:Button click="removePattern()">删除</s:Button>
+        </s:VGroup>
+
+    </s:Panel>
+
+</s:VGroup>

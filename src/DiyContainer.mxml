@@ -1,0 +1,632 @@
+<?xml version="1.0"?>
+<s:BorderContainer
+          backgroundAlpha="0"
+          width="100%" height="100%"
+          xmlns:fx="http://ns.adobe.com/mxml/2009"
+          xmlns:s="library://ns.adobe.com/flex/spark"
+          xmlns:mx="library://ns.adobe.com/flex/mx"
+          borderVisible="false"
+          textAlign="center"
+          creationComplete="init_diy()">
+
+    <fx:Script><![CDATA[
+
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Global;
+        import models.Pattern;
+        import models.Piece;
+
+        import mx.containers.Canvas;
+        import mx.controls.Alert;
+        import mx.core.DragSource;
+        import mx.core.IUIComponent;
+        import mx.core.UIComponent;
+        import mx.events.DragEvent;
+        import mx.graphics.ImageSnapshot;
+        import mx.graphics.codec.JPEGEncoder;
+        import mx.managers.DragManager;
+
+        import spark.components.Image;
+        import spark.filters.GlowFilter;
+
+        import utils.Multipart;
+
+        import utils.Tool;
+
+        [Bindable]
+        private var ContainerWidth:int = 0;
+
+        [Bindable]
+        private var ContainerHeight:int = 0;
+
+        private var borderArray:Array = [];
+        private var canvasArray:Array = [];
+        private var patternsArray:Array = [];
+        private var patternsArray2:Object = {};
+
+        private var colorArray:Array = ["#ff99c1", "#ffdb71", "#ff99c1", "#ffdb71"];
+
+        private var previewFile:FileReference;
+
+        private function init_diy():void {
+            previewFile = new FileReference();
+            // 清空选中状态
+            addEventListener(MouseEvent.CLICK, function (e:MouseEvent):void {
+                clearState();
+            });
+            Dispatcher.getInstance().addEventListener(PieceEvent.CLEAR_STATE, function (e:PieceEvent):void {
+                clearState();
+            });
+
+            // 自适应 原始尺寸
+            Dispatcher.getInstance().addEventListener(PieceEvent.AUTO_FIT, function (e:PieceEvent):void {
+                var p:Piece = Global.findPieceSelected();
+                if(!p) {
+                    return;
+                }
+                var ev:PieceEvent = new PieceEvent(PieceEvent.PIECE_CHANGE);
+                ev.piece = p;
+                Dispatcher.getInstance().dispatchEvent(ev);
+            });
+            // 自适应 原始尺寸
+            Dispatcher.getInstance().addEventListener(PieceEvent.SHOW_RIGHT, function (e:PieceEvent):void {
+                // 模版居中
+                if(Global.showRight){
+                    ContainerGroup.x = (width - ContainerWidth) / 2;
+                }else{
+                    ContainerGroup.x = (width + 210 - ContainerWidth) / 2;
+                }
+            });
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.PATTERN_REMOVE, function (e:PieceEvent):void {
+                var ptn:Object = e.patternRaw;
+                for(var j: int = 0, len2: int = canvasArray.length; j < len2; j++){
+                    var ptn2:Object = patternsArray2[canvasArray[j]];
+                    if(!ptn2.imageType){
+                        return;
+                    }
+                    if(ptn.bitmapData){
+                        if(ptn2.bitmapData == ptn.bitmapData ){
+                            renderCanvas(canvasArray[j], null);
+                            clearState();
+                        }
+                    }else if(ptn.thumbUrl){
+                        if(ptn2.thumbUrl == ptn.thumbUrl){
+                            renderCanvas(canvasArray[j], null);
+                            clearState();
+                        }
+                    }
+                }
+            });
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.PATTERN_INIT, function (e:PieceEvent):void {
+                patternsArray = e.patterns;
+                for (var i:int = 0; i < canvasArray.length; i++) {
+                    // 渲染花型
+                    if(patternsArray[i]) {
+                        renderCanvas(canvasArray[i], new Pattern(patternsArray[i]));
+                    }
+                }
+            });
+
+            // 更换模版
+            Dispatcher.getInstance().addEventListener(PieceEvent.PIECE_CHANGE, function (e:PieceEvent):void {
+                var target:Piece = e.piece as Piece;
+                target.space = int(target.space);
+
+                var i:int = 0, items:Array = target.items, len:int = items.length;
+                var t:int = 0;   // 平分
+                for (i = 0; i < len; i++) {
+                    t += int(items[i].flex);
+                }
+                // size 尺寸
+                if(Global.autoFit){
+                    var re:Object = Tool.scaleToFit(target.width, target.height, width - 40, height - 40);
+                    ContainerWidth = re.scaleWidth;
+                    ContainerHeight = re.scaleHeight;
+                }else{
+                    ContainerWidth = target.width;
+                    ContainerHeight = target.height;
+                }
+                // 模版居中
+                if(Global.showRight){
+                    ContainerGroup.x = (width - ContainerWidth) / 2;
+                }else{
+                    ContainerGroup.x = (width + 210 - ContainerWidth) / 2;
+                }
+                ContainerGroup.y = (height - ContainerHeight) / 2;
+                cachePatterns();
+
+                contentGroup.removeAllElements();
+                borderArray = [];
+                canvasArray = [];
+
+                // 创建 canvas
+                for (i = 0; i < len; i++) {
+                    var border:BorderContainer = new BorderContainer();
+                    var canvas:Canvas = new Canvas();
+
+                    borderArray.push(border);
+                    canvasArray.push(canvas);
+
+                    border.setStyle("borderWeight", 2);
+                    border.setStyle("borderColor", "#ffffff");
+                    canvas.verticalScrollPolicy = 'off';
+                    canvas.horizontalScrollPolicy = 'off';
+                    canvas.setStyle("backgroundColor", colorArray[i % 4]);
+
+                    if (target.layout == 'hbox') {     // 横向布局
+                        var _width:int = int(((ContainerWidth - target.paddingLeft * 2) - target.space * (len - 1)) * (int(items[i].flex) / t));
+                        var _height:int = (ContainerHeight - target.paddingTop * 2);
+                        border.width = _width;
+                        border.height = _height;
+                        canvas.width = border.width - 4;
+                        canvas.height = border.height - 4;
+
+                        border.y = target.paddingTop;
+                        if (i > 0) {
+                            var tmp_w:int = target.paddingLeft;
+                            for (var j:int = 0; j < i; j++) {
+                                tmp_w += (borderArray[j].width + target.space);
+                            }
+                            border.x = tmp_w;
+                        } else {
+                            border.x = target.paddingLeft;
+                        }
+                    } else {
+                        // 纵向布局
+                        border.width = int(ContainerWidth - target.paddingLeft * 2);
+                        border.height = int(((ContainerHeight - target.paddingTop * 2) - target.space * (len - 1)) * (int(items[i].flex) / t));
+                        canvas.width = border.width - 4;
+                        canvas.height = border.height - 4;
+
+                        border.x = target.paddingLeft;
+                        if (i > 0) {
+                            var tmp_h:int = target.paddingTop;
+                            for (var k:int = 0; k < i; k++) {
+                                tmp_h += (borderArray[k].height + target.space);
+                            }
+                            border.y = tmp_h;
+                        } else {
+                            border.y = target.paddingTop;
+                        }
+                    }
+
+                    // 注册事件
+                    border.addEventListener(MouseEvent.CLICK, mouseDown);
+                    canvas.addEventListener(DragEvent.DRAG_ENTER, canvasDragEnterHandler);
+                    canvas.addEventListener(DragEvent.DRAG_DROP, canvasDragDropHandler);
+                    canvas.addEventListener(MouseEvent.MOUSE_WHEEL, canvasWheelHandler);
+                    canvas.addEventListener(MouseEvent.ROLL_OUT,canvasRollOutHandler);
+
+                    border.addEventListener(MouseEvent.DOUBLE_CLICK, UploadHandler);
+                    border.doubleClickEnabled = true;
+
+                    // 最后渲染
+                    border.addElement(canvas);
+                    contentGroup.addElement(border);
+
+                    border.contentGroup.clipAndEnableScrolling = false;
+
+                    // 渲染花型
+                    if (patternsArray[i]) {
+                        renderCanvas(canvas, new Pattern(patternsArray[i]));
+                    }
+                }
+            });
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.CHANGE_SIZE, function (e:PieceEvent):void {
+                var s:Number = Number(e.scale.toFixed(2));
+                var index:int = findCurCanvasIndex();
+                if (index < 0) {
+                    return;
+                }
+                var canvas:Canvas = canvasArray[index];
+                var target:* = canvas.getChildAt(0);
+
+                target.scaleX = s;
+                target.scaleY = s;
+                target.transformX = canvas.width / 2;
+                target.transformY = canvas.height / 2;
+            });
+            Dispatcher.getInstance().addEventListener(PieceEvent.CHANGE_ROTATE, function (e:PieceEvent):void {
+                var s:Number = Number(e.rotate.toFixed(2));
+                var index:int = findCurCanvasIndex();
+                if (index < 0) {
+                    return;
+                }
+                var canvas:Canvas = canvasArray[index];
+                var target:* = canvas.getChildAt(0);
+
+                target.rotation = s;
+                target.transformX = canvas.width / 2;
+                target.transformY = canvas.height / 2;
+
+            });
+            Dispatcher.getInstance().addEventListener(PieceEvent.REMOVE_PATTERN, function (e:PieceEvent):void {
+                var index:int = findCurCanvasIndex();
+                if (index < 0) {
+                    return;
+                }
+                var canvas:Canvas = canvasArray[index];
+                canvas.removeAllChildren();
+                patternsArray2[canvas] = null;
+            });
+
+            Dispatcher.getInstance().addEventListener(PieceEvent.SAVE_IMAGE, function (e:PieceEvent):void {
+                saveCutHandler(e.saveType);
+            });
+        }
+
+        private function UploadHandler(e:MouseEvent):void {
+            e.stopPropagation();
+            previewFile = new FileReference();
+            var imageTypes:FileFilter = new FileFilter("图片 (*.jpg, *.jpeg, *.gif, *.png)", "*.jpg; *.jpeg; *.gif; *.png");
+            var allTypes:Array = new Array(imageTypes);
+            previewFile.addEventListener(Event.SELECT, selectHandler);
+            previewFile.browse(allTypes);
+        }
+
+        // 选择文件后的处理
+        private function selectHandler(event:Event):void {
+            previewFile.addEventListener(Event.COMPLETE, loadCompleteHandler);
+            previewFile.load();
+        }
+
+        // 本地预览
+        private function loadCompleteHandler(event:Event):void {
+            var loader:Loader = new Loader();
+            trace("load preview image success");
+            var file:FileReference = event.target as FileReference;
+            if (file.size > 1024 * 1024 * 5) {
+                Alert.show("文件不能超过5M.", "错误");
+                return;
+            }
+            loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function ():void {
+                var bitmap:Bitmap = Bitmap(loader.content);
+                var ptn:Object = {
+                    bitmapData: bitmap.bitmapData,
+                    width: bitmap.width,
+                    height: bitmap.height,
+                    imageType: 'preview'
+                };
+                trace("load preview image success");
+
+                Global.patternList.push(new Pattern(ptn));
+                Dispatcher.getInstance().dispatchEvent(new PieceEvent(PieceEvent.NEW_PATTERN));
+
+                var idx:int = findCurCanvasIndex();
+                if (idx < 0) {
+                    return;
+                }
+                renderCanvas(canvasArray[idx], new Pattern(ptn));
+
+                file.removeEventListener(Event.COMPLETE, loadCompleteHandler);
+            });
+            loader.loadBytes(event.target.data);
+        }
+
+        private function clearState():void {
+            for (var i:int = 0, len:int = borderArray.length; i < len; i++) {
+                borderArray[i].setStyle("borderColor", 0xffffff);
+            }
+            var ev:PieceEvent = new PieceEvent(PieceEvent.PANEL_TOGGLE);
+            ev.toggle = false;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        // 从花型列表拖拽花型到canvas 进入拖放区域
+        private function canvasDragEnterHandler(event:DragEvent):void {
+            // 进入区域, 设置状态为允许拖放
+            if (event.dragSource.hasFormat("PATTERN"))
+                DragManager.acceptDragDrop(event.target as UIComponent);
+        }
+
+        // 拖放图片
+        private function canvasDragDropHandler(event:DragEvent):void {
+            var raw:Object = (event.dragSource.dataForFormat("raw")) as Object;
+            var canvas:Canvas = event.currentTarget as Canvas;
+            var pattern:Pattern = new Pattern(raw);
+
+            if(SwapPattern){
+                SwapPattern = false;
+
+                var tp1:* = patternsArray2[canvasArray[0]];
+                var tp2:* = patternsArray2[canvasArray[1]];
+
+                if(tp2 && tp2.imageType){
+                    renderCanvas(canvasArray[0], new Pattern(tp2));
+                }else{
+                    renderCanvas(canvasArray[0], null);
+                }
+                if(tp1 && tp1.imageType){
+                    renderCanvas(canvasArray[1], new Pattern(tp1));
+                }else{
+                    renderCanvas(canvasArray[1], null);
+                }
+
+            }else{
+                renderCanvas(canvas, pattern);
+            }
+        }
+
+        // 缓存patterns;
+        private function cachePatterns():void {
+            for(var i:int = 0, len:int = canvasArray.length; i < len ;i++){
+                patternsArray[i] = patternsArray2[canvasArray[i]] || null;
+            }
+        }
+
+        private var MouseDown:Boolean = false;
+        private var SwapPattern:Boolean = false;
+        //
+        private function renderCanvas(canvas:Canvas, pattern:Pattern):void {
+            // 清空画布
+            canvas.removeAllChildren();
+
+            if(!pattern || !pattern.raw){
+                patternsArray2[canvas] = null;
+                return;
+            }
+
+            patternsArray2[canvas] = pattern.raw;
+
+            var el:Image = new Image();
+            el.source = pattern.source;
+            el.rotation = 0;
+            canvas.addChild(el);
+
+            if(pattern.raw.width){
+                var re:Object = Tool.fillToFit(pattern.raw.width, pattern.raw.height, canvas.width, canvas.height);
+                el.width = re.scaleWidth;
+                el.height = re.scaleHeight;
+                el.x = (canvas.width - re.scaleWidth) /2;
+                el.y = -(re.scaleHeight - canvas.height ) /2;
+            }else if(pattern.raw.thumbUrl){
+                (function(target:Image, ptn:Pattern, pa:Canvas):void{
+                    var loader:Loader = new Loader();
+                    loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(event:Event):void{
+                        ptn.raw['width'] = event.currentTarget.width;
+                        ptn.raw['height'] = event.currentTarget.height;
+
+                        var re:Object = Tool.fillToFit(ptn.raw.width, ptn.raw.height, pa.width, pa.height);
+                        target.width = re.scaleWidth;
+                        target.height = re.scaleHeight;
+                        target.x = (pa.width - re.scaleWidth) /2;
+                        target.y = -(re.scaleHeight - pa.height ) /2;
+                    });
+                    loader.load(new URLRequest(ptn.source));
+                })(el, pattern, canvas);
+            }
+
+            el.addEventListener(MouseEvent.MOUSE_DOWN, function (e:MouseEvent):void {
+                e.stopPropagation();
+                MouseDown = true;
+                if(MouseDown){
+                    var p:int = findCurCanvasIndex();
+                    if(p < 0){
+                       MouseDown = false;
+                        return;
+                    }
+                    var w:int = e.currentTarget.width - canvasArray[p].width;
+                    var h:int = e.currentTarget.height - canvasArray[p].height;
+                    var bounds:Rectangle = new Rectangle(-w,-h, w,h);
+                    e.currentTarget.startDrag(false, bounds);
+                }
+            });
+            el.addEventListener(MouseEvent.MOUSE_UP, function (e:MouseEvent):void {
+                e.currentTarget.stopDrag();
+                SwapPattern = false;
+                MouseDown = false;
+            });
+
+            canvas.parent.parent.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            // hack for 选中
+            if ((canvas.parent.parent.parent as BorderContainer).getStyle("borderColor") == 0x0001fe) {
+                var ev:PieceEvent = new PieceEvent(PieceEvent.PANEL_TOGGLE);
+                if (!canvas.numChildren) {
+                    ev.toggle = false;
+                } else {
+                    ev.toggle = true;
+                    ev.scale = canvas.getChildAt(0).scaleX;
+                    ev.rotate = canvas.getChildAt(0).rotation;
+                }
+                Dispatcher.getInstance().dispatchEvent(ev);
+            }
+        }
+
+        private function canvasRollOutHandler(e:MouseEvent):void{
+            if (!MouseDown) {
+                return;
+            }
+            MouseDown = false;
+            SwapPattern = true;
+
+            var target:Canvas = e.currentTarget as Canvas;
+            var iu:Image = target.getChildAt(0) as Image;
+            iu.stopDrag();
+
+            var dragSource:DragSource = new DragSource();
+            dragSource.addData(iu, 'PATTERN');
+
+            dragSource.addData(patternsArray2[target], 'raw');
+
+            //  定义拖拽图标(用于第二副图片的拖拽)
+            var di:Image = new Image();
+            di = Tool.cloneImage(iu, target.width, target.height);
+            DragManager.doDrag(iu, dragSource, e, di);
+        }
+
+        // 鼠标滚动缩放
+        private function canvasWheelHandler(e:MouseEvent):void {
+            var direction:int = (e.delta > 0) ? 3 : (e.delta < 0) ? -3 : 0;
+            var canvas:Canvas = e.currentTarget as Canvas;
+            if (!canvas.numChildren || !direction) {
+                return;
+            }
+            var ptn:* = canvas.getChildAt(0);
+            var s:Number = ptn.scaleX;
+
+            s += direction / 100;
+            s = Math.min(Global.maxScale, s);
+            s = Math.max(Global.minScale, s);
+
+            ptn.scaleX = s;
+            ptn.scaleY = s;
+
+            ptn.transformX = e.localX;
+            ptn.transformY = e.localY;
+
+            var ev:PieceEvent = new PieceEvent(PieceEvent.CHANGE_SIZE_SINGLE);
+            ev.scale = s;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        // 切换border
+        private function mouseDown(e:Event):void {
+            e.stopPropagation();
+            var target:BorderContainer = e.currentTarget as BorderContainer;
+            if (target.getStyle("borderColor") == 0x0001fe) {
+                return;
+            }
+            for (var i:int = 0, len:int = borderArray.length; i < len; i++) {
+                if (borderArray[i] == target) {
+                    target.setStyle("borderColor", 0x0001fe);
+                    var canvas:Canvas = canvasArray[i];
+                    var ev:PieceEvent = new PieceEvent(PieceEvent.PANEL_TOGGLE);
+                    if (!canvas.numChildren) {
+                        ev.toggle = false;
+                    } else {
+                        ev.toggle = true;
+                        ev.scale = canvas.getChildAt(0).scaleX;
+                        ev.rotate = canvas.getChildAt(0).rotation;
+                    }
+                    Dispatcher.getInstance().dispatchEvent(ev);
+                } else {
+                    borderArray[i].setStyle("borderColor", 0xffffff);
+                }
+            }
+        }
+
+        private function findCurCanvasIndex():* {
+            for (var i:int = 0, len:int = borderArray.length; i < len; i++) {
+                if (borderArray[i].getStyle("borderColor") == 0x0001fe) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private function saveCutHandler(type:String):void {
+            var jPEGEncoder:JPEGEncoder = new JPEGEncoder(80);
+
+            for (var i:int = 0, len:int = borderArray.length; i < len; i++) {
+                borderArray[i].setStyle("borderVisible", true);
+            }
+
+            // 添加文字水印效果
+            var matrix:Matrix = new Matrix();
+            var matrix2:Matrix = new Matrix();
+
+            if(Global.waterImage && Global.waterImage != ''){
+                waterImage.visible = waterImage.includeInLayout = true;
+                matrix2.translate((ContainerWidth - (waterImage.sourceWidth || 0))/2,
+                        (ContainerHeight - (waterImage.sourceHeight||0))/2);
+//                imageSnapData.draw(waterImage, matrix2);
+                waterImage.transform.matrix = matrix2;
+                ContainerGroup.addElement(waterImage);
+//                waterImage.visible = false;
+            }
+            if(Global.waterLabel && Global.waterLabel != ''){
+                waterLabel.visible = waterLabel.includeInLayout = true;
+//                if(waterLabel.width > 0){
+//                    var m:int = Math.max(ContainerWidth, ContainerHeight) / waterLabel.width;
+//                    while(m > 1){
+//                        waterLabel.text += " " + waterLabel.text;
+//                        m--;
+//                    }
+//                }
+                matrix.rotate(Math.atan(ContainerHeight/ContainerWidth));
+//                imageSnapData.draw(waterLabel, matrix);
+                waterLabel.transform.matrix = matrix;
+                ContainerGroup.addElement(waterLabel);
+//                waterLabel.visible = false;
+            }
+            var imageSnapData:BitmapData = ImageSnapshot.captureBitmapData(ContainerGroup);
+            waterLabel.visible = waterLabel.includeInLayout = false;
+            waterImage.visible = waterImage.includeInLayout = false;
+
+            if(!imageSnapData){
+                Alert.show("图片跨域了，截图失败！");
+                return;
+            }
+
+            var file:FileReference = new FileReference();
+            if (type == 'local') {
+                //调用文件保存方法 保存生成得图片到硬盘
+                file.save(jPEGEncoder.encode(imageSnapData), Global.uploadDataFieldName + ".jpg");
+            } else {
+                if(ExternalInterface.call('onBeforeUpload', imageSnapData)){
+                    uploadHandler(jPEGEncoder.encode(imageSnapData), function (v:Object):void {
+                        ExternalInterface.call('onUploadResponse', v);
+                    });
+                }
+            }
+        }
+
+        private function uploadHandler(imageBytes:ByteArray, callback:Function):void {
+            if (!Global.uploadUrl) {
+                Alert.show("需要设置上传文件路径");
+                return;
+            }
+
+            var url:String = Global.uploadUrl;
+
+            var form:Multipart = new Multipart(url);
+
+            // add fields
+            for(var k in Global.uploadParams){
+                form.addField(String(k),  Global.uploadParams[k]);
+            }
+
+            // add files
+            form.addFile(Global.uploadDataFieldName, imageBytes, "image/jpeg", Global.uploadDataFieldName + ".jpg");
+
+            // Load request
+            var loader:URLLoader = new URLLoader();
+            loader.addEventListener(Event.COMPLETE, function(evt:Event):void{
+                var temp:Object = evt as Object;
+                temp = JSON.parse(loader.data) as Object;
+                if (callback) {
+                    callback(temp);
+                }
+            });
+            try {
+                loader.load(form.request);
+            } catch (error: Error) {
+                Alert.show("Unable to load request : "+error.message);
+            }
+        }
+        ]]></fx:Script>
+        <s:BorderContainer backgroundColor="white"
+                           id="ContainerGroup"
+                           width="{ContainerWidth}"
+                           height="{ContainerHeight}"
+                borderVisible="false">
+            <s:Group id="contentGroup"
+                     width="{ContainerWidth}"
+                     height="{ContainerHeight}">
+                <s:layout>
+                    <s:BasicLayout/>
+                </s:layout>
+            </s:Group>
+        </s:BorderContainer>
+    <s:Label id="waterLabel" text="{Global.waterLabel}"
+             color="{Global.waterLabelColor}"
+             fontSize="{Global.waterLabelSize}"
+             filters="{[new GlowFilter(0x333333, 1, 2, 2, 3)]}" visible="false"/>
+    <s:Image id="waterImage" source="{Global.waterImage}"
+             fillMode="scale" visible="false"/>
+</s:BorderContainer>

@@ -1,0 +1,302 @@
+<?xml version="1.0"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark"
+               xmlns:mx="library://ns.adobe.com/flex/mx"
+               width="100%"
+               xmlns:subpages="*"
+               creationComplete="callLater(initMain)"
+               height="100%">
+
+    <fx:Style source="style/style.css"/>
+
+    <fx:Script><![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Global;
+        import models.Pattern;
+
+        import models.Piece;
+
+        import mx.controls.Alert;
+        import mx.graphics.codec.JPEGEncoder;
+
+//        Security.allowDomain("*");
+//        Security.allowInsecureDomain("*");
+
+        ExternalInterface.addCallback("getGlobal", function():Object{
+            return Global;
+        });
+        ExternalInterface.addCallback("setUploadURL", function(s:String):void{
+            Global.uploadUrl = s;
+        });
+        ExternalInterface.addCallback("setWaterLabel", function(s:String):void{
+            Global.waterLabel = s + " " + s + " " + s + " " + s + " " + s + " " + s;
+        });
+        ExternalInterface.addCallback("setWaterLabelSize", function(s:Number):void{
+            Global.waterLabelSize = s;
+        });
+        ExternalInterface.addCallback("setWaterLabelColor", function(s:Number):void{
+            Global.waterLabelColor = s;
+        });
+        ExternalInterface.addCallback("setWaterImage", function(s:String):void{
+            Global.waterImage = s;
+        });
+        ExternalInterface.addCallback("setUploadDataFieldName", function(s:String):void{
+            Global.uploadDataFieldName = s;
+        });
+        ExternalInterface.addCallback("setMaxScale", function(s:Number):void{
+            Global.maxScale = s;
+        });
+        ExternalInterface.addCallback("setMinScale", function(s:Number):void{
+            Global.minScale = s;
+        });
+        ExternalInterface.addCallback("setTemplate", function(p:Array):void{
+            loadPieceHandler(p);
+        });
+        ExternalInterface.addCallback("setUploadArgs", function(p:Object):void{
+            Global.uploadParams = p;
+        });
+        ExternalInterface.addCallback("loadPhoto", function(p:Array):void{
+            loadPhotoHandler(p);
+        });
+        ExternalInterface.addCallback("setAutoFit", function(b:Boolean = true):void{
+            Global.autoFit = b;
+        });
+
+        private function initMain():void{
+            ExternalInterface.call("onInit");
+
+            Security.loadPolicyFile("http://121.40.192.218/crossdomain.xml");
+
+//            var p1:Array = [
+//                {
+//                    size: 'normal',                  // 尺寸大小  normal(1:1), small(7:10), big(10:7), 默认 normal
+//                    layout: "hbox",                  // 布局: hbox(横向布局)  vbox(竖向布局)默认为vbox
+//                    selected: false,                 // 是否启用 默认是false （不是必须项）
+//                    thumbUrl: 'images/temp/tp2.png', // 模版缩略图 （必须项）
+//                    items: [                         // 子元素数组[]，默认为[{flex:1}]
+//                        {flex: 1},                   // : flex(int) 表示划分单元
+//                        {flex: 1}
+//                    ],
+//                    space: 5                         // 子元素之间的间隔 (px)默认5px
+//                },
+//                {
+//                    size: 'big',
+//                    thumbUrl: 'images/temp/tp1.png',
+//                    items: [
+//                        {flex: 1},
+//                        {flex: 2}
+//                    ]
+//                },
+//                {
+//                    size: 'small',
+//                    selected: true,
+//                    thumbUrl: 'images/temp/tp4.png',
+//                    items: [
+//                        {flex: 2},
+//                        {flex: 1}
+//                    ]
+//                }
+//            ];
+//            var p2:Array = [
+//                "http://open.web.meitu.com/sources/images/1.jpg",
+//                "http://open.web.meitu.com/sources/images/2.jpg"
+//            ];
+//            loadPieceHandler(p1);
+//            loadPhotoHandler(p2);
+        }
+
+        public static function loadPieceHandler(p:Array):void{
+            var temp:Array = [];
+            for(var i:int = 0; i < p.length; i++){
+                var item:Object = p[i];
+                item.selected = Boolean(item.selected) || false;
+                item.space = Number(item.space) || 5;
+                if(item.space < 0){
+                    item.space = 0;
+                }
+                item.size = item.size || 'normal';
+                if(item.size != 'normal'&&item.size != 'big' && item.size!='small'){
+                    item.size = 'normal';
+                }
+
+                item.items = item.items || [{flex: 1}];
+                item.layout = item.layout || 'vbox';
+                if(item.layout != 'vbox'&&item.layout != 'hbox'){
+                    item.layout = 'vbox';
+                }
+                temp.push(item);
+            }
+
+            Global.initPieceList(temp, true);
+        }
+
+        public static function loadPhotoHandler(p:Array):void{
+            var  patternsArray:Array = [];
+            Global.patternList = [];
+
+            // 跨域图片 安全沙箱冲突
+            for(var i:int = 0; i < p.length; i++){
+//                var ptn:Object = {
+//                    thumbUrl: p[i],
+//                    width: 0,
+//                    height: 0,
+//                    imageType: 'url'
+//                };
+//                patternsArray.push(ptn);
+//                Global.patternList.push(new Pattern(ptn));
+
+                var l1:Loader = new Loader();
+                var l2:Loader = new Loader();
+                (function(item:String, loader:Loader, loader2:Loader):void{
+                    loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(event:Event):void{
+//                        loader2.contentLoaderInfo.addEventListener(Event.COMPLETE,  function(event:Event):void{
+                            //将二进制数据转换成BitmapData
+                            var bmp:Bitmap = new Bitmap(new BitmapData(
+                                    loader.contentLoaderInfo.width,
+                                    loader.contentLoaderInfo.height), 'auto', true);
+                            bmp.bitmapData.draw(loader.content);
+
+                            var ptn:Object = {
+                                bitmapData: bmp.bitmapData,
+                                width: loader.contentLoaderInfo.width,
+                                height: loader.contentLoaderInfo.height,
+                                imageType: 'preview'
+                            };
+                            patternsArray.push(ptn);
+                            Global.patternList.push(new Pattern(ptn));
+
+                            if(patternsArray.length == p.length){
+                                Dispatcher.getInstance().dispatchEvent(new PieceEvent(PieceEvent.NEW_PATTERN));
+
+                                var ev:PieceEvent = new PieceEvent(PieceEvent.PATTERN_INIT);
+                                ev.patterns = patternsArray;
+                                Dispatcher.getInstance().dispatchEvent(ev);
+                            }
+//                        });
+//                        loader2.loadBytes(loader.contentLoaderInfo.bytes);
+                    });
+                    loader.load(new URLRequest(item));
+                })(p[i], l1, l2);
+            }
+
+//            Dispatcher.getInstance().dispatchEvent(new PieceEvent(PieceEvent.NEW_PATTERN));
+//
+//            var ev:PieceEvent = new PieceEvent(PieceEvent.PATTERN_INIT);
+//            ev.patterns = patternsArray;
+//            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        private function clearHandler():void{
+            var ev2:PieceEvent = new PieceEvent(PieceEvent.CLEAR_STATE);
+            Dispatcher.getInstance().dispatchEvent(ev2);
+        }
+
+        private function saveHandler(saveType:String):void{
+            var ev:PieceEvent = new PieceEvent(PieceEvent.SAVE_IMAGE);
+            ev.saveType = saveType;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+
+        private function changeSize(b:Boolean):void{
+            if(Global.autoFit == b){
+                return;
+            }
+            Global.autoFit = b;
+            var ev:PieceEvent = new PieceEvent(PieceEvent.AUTO_FIT);
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+        ]]>
+
+    </fx:Script>
+
+    <s:BorderContainer width="100%" height="100%" borderVisible="false">
+        <s:backgroundFill>
+            <s:BitmapFill source="@Embed('/images/bg.jpg')" fillMode="repeat"/>
+        </s:backgroundFill>
+
+        <s:HGroup paddingLeft="6" paddingRight="6" gap="10"
+                  paddingTop="20" paddingBottom="20"
+                  width="100%"
+                  height="100%"
+                  minWidth="1024"
+                  minHeight="500">
+
+            <!--照片-->
+            <subpages:PatternContainer id="PatternPage" width="200" height="100%" />
+
+            <!--主体-->
+            <s:VGroup gap="10" width="100%" height="100%">
+                <!--保存-->
+                <s:BorderContainer
+                        cornerRadius="5"
+                        backgroundColor="white"
+                        width="100%"
+                        height="37">
+                    <s:HGroup>
+                        <s:HGroup paddingLeft="20" buttonMode="true"
+                                  gap="2"
+                                  mouseDown="clearHandler()"
+                                  verticalAlign="middle"
+                                  click="saveHandler('local')">
+                            <s:Image source="@Embed(source='images/floppy-o_428bca_32.png')" height="20"
+                                     verticalAlign="middle"/>
+                            <s:Label height="37" lineHeight="37"
+                                     verticalAlign="middle"
+                                     text="保存至本地"
+                                     fontSize="16"/>
+                        </s:HGroup>
+                        <s:HGroup paddingLeft="20" buttonMode="true"
+                                  mouseDown="clearHandler()"
+                                  gap="2"
+                                  verticalAlign="middle"
+                                  click="saveHandler('upload')">
+                            <s:Image source="@Embed(source='images/upload_428bca_32.png')" height="20"
+                                    verticalAlign="middle"/>
+                            <s:Label height="37" lineHeight="37"
+                                     verticalAlign="middle"
+                                     text="上传至服务器"
+                                     fontSize="16"/>
+                        </s:HGroup>
+                        <s:HGroup paddingLeft="20" buttonMode="true"
+                                  gap="2"
+                                  verticalAlign="middle"
+                                  click="changeSize(true)">
+                            <s:Image source="@Embed(source='images/arrows-alt_428bca_32.png')" height="20"
+                                    verticalAlign="middle"/>
+                            <s:Label height="37" lineHeight="37"
+                                     verticalAlign="middle"
+                                     text="自适应"
+                                     fontSize="16"/>
+                        </s:HGroup>
+                        <s:HGroup paddingLeft="20" buttonMode="true"
+                                  gap="2"
+                                  verticalAlign="middle"
+                                  click="changeSize(false)">
+                            <s:Image source="@Embed(source='images/refresh_428bca_32.png')" height="20"
+                                    verticalAlign="middle"/>
+                            <s:Label height="37" lineHeight="37"
+                                     verticalAlign="middle"
+                                     text="原始尺寸"
+                                     fontSize="16"/>
+                        </s:HGroup>
+
+                    </s:HGroup>
+
+                </s:BorderContainer>
+
+                <!--拼图-->
+                <s:HGroup width="100%" height="100%">
+                    <!--拼图-->
+                    <subpages:DiyContainer id="DiyPage" width="100%" height="100%" />
+
+                    <!--模版-->
+                    <subpages:TemplateContainer id="TemplatePage"
+                                                width="210" height="100%" />
+                </s:HGroup>
+
+            </s:VGroup>
+            <!--模版-->
+        </s:HGroup>
+    </s:BorderContainer>
+</s:Application>

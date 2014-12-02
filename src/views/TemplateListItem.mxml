@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+                xmlns:s="library://ns.adobe.com/flex/spark"
+                xmlns:mx="library://ns.adobe.com/flex/mx"
+                autoDrawBackground="false"
+                creationComplete="init_item()">
+    <fx:Script>
+		<![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Global;
+
+        import models.Piece;
+
+        import mx.core.DragSource;
+        import mx.core.IUIComponent;
+        import mx.managers.DragManager;
+        import utils.Tool;
+
+        private function init_item():void {
+            trace('init_TemplateItem');
+            // trace(data.thumbUrl);
+        }
+
+        private function selectHandler(event:MouseEvent):void{
+            var ev:PieceEvent = new PieceEvent(PieceEvent.PIECE_CHANGE);
+            var piece:Piece = Global.findPieceBySerial(data.serial);
+            if(piece.selected){
+                return;
+            }
+            for(var j:int = Global.pieceList.length - 1; j >= 0; j--){
+                if(Global.pieceList[j] == piece){
+                    piece.selected = true;
+                }else{
+                    Global.pieceList[j].selected = false;
+                }
+            }
+            ev.piece = piece;
+            Dispatcher.getInstance().dispatchEvent(ev);
+        }
+        ]]>
+	</fx:Script>
+
+    <s:BorderContainer backgroundAlpha="0" id="bc" width="71" height="71"
+                       borderVisible="{data.selected}"
+                       borderWeight="2"
+                       click="selectHandler(event)"
+                       borderColor="#008fd8"
+                       creationComplete="bc.contentGroup.clipAndEnableScrolling = false">
+        <s:Image
+                useHandCursor="true" buttonMode="true"
+                source="{data.thumbUrl}" width="67" height="67"
+                backgroundAlpha="0"
+                fillMode="scale" />
+    </s:BorderContainer>
+
+</s:ItemRenderer>

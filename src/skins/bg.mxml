@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+        xmlns:s="library://ns.adobe.com/flex/spark"
+        xmlns:mx="library://ns.adobe.com/flex/mx" width="400" height="300">
+    <s:layout>
+        <s:BasicLayout/>
+    </s:layout>
+    <fx:Declarations>
+        <!-- 将非可视元素（例如服务、值对象）放在此处 -->
+    </fx:Declarations>
+    <s:states>
+        <s:State name="normal" />
+        <s:State name="disabled" />
+    </s:states>
+
+    <fx:Metadata>
+<![CDATA[
+        [HostComponent("spark.components.Application")]
+        ]]>
+</fx:Metadata>
+
+    <!-- fill -->
+    <s:BitmapImage id="img" source="@Embed('/images/bg.jpg')"
+                   smooth="true" left="0" right="0" top="0" bottom="0" top.normal="0" left.normal="0"
+                   bottom.normal="0" right.normal="0"/>
+
+    <s:Group id="contentGroup" left="0" right="0" top="0" bottom="0" minWidth="0" minHeight="0" />
+
+</s:Skin>

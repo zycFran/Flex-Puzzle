@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<s:VGroup
+          width="100%" height="100%"
+          xmlns:fx="http://ns.adobe.com/mxml/2009"
+          xmlns:s="library://ns.adobe.com/flex/spark"
+          xmlns:subpages="*"
+          xmlns:mx="library://ns.adobe.com/flex/mx"
+          creationComplete="init_patternList()">
+
+    <fx:Script><![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Pattern;
+
+        import mx.collections.ArrayCollection;
+        import mx.controls.Alert;
+        import models.Global;
+
+        [Bindable]
+        private var patternListCollection:ArrayCollection;
+
+        private var fileReferenceList:FileReferenceList;
+
+        private function init_patternList():void{
+            Dispatcher.getInstance().addEventListener(PieceEvent.NEW_PATTERN, function(e:PieceEvent):void{
+                patternListCollection = new ArrayCollection(Global.patternList);
+            });
+            Dispatcher.getInstance().addEventListener(PieceEvent.PATTERN_REMOVE, function (e:PieceEvent):void {
+                var ptn:Object = e.patternRaw;
+                for(var j: int = 0, len2: int = patternListCollection.length; j < len2; j++){
+                    var ptn2:Object = patternListCollection[j];
+                    if(ptn.bitmapData){
+                        if(ptn2.raw.bitmapData == ptn.bitmapData ){
+                            Global.patternList.splice(j, 1);
+                            patternListCollection = new ArrayCollection(Global.patternList);
+                            break;
+                        }
+                    }else if(ptn.thumbUrl){
+                        if(ptn2.raw.thumbUrl == ptn.thumbUrl){
+                            Global.patternList.splice(j, 1);
+                            patternListCollection = new ArrayCollection(Global.patternList);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        //打开浏览文件窗口选择要上传的文件
+        private function browse(event:MouseEvent):void {
+            var imageTypes:FileFilter = new FileFilter("图片 (*.jpg, *.jpeg, *.gif, *.png)", "*.jpg; *.jpeg; *.gif; *.png");
+            var allTypes:Array = new Array(imageTypes);
+
+            fileReferenceList = new FileReferenceList();
+            fileReferenceList.addEventListener(Event.SELECT,selectHandler);
+            fileReferenceList.browse(allTypes);
+        }
+
+        // 选择文件后的处理
+        // 若选择多个文件，每个文件都需要一个FileReference进行处理
+        private function selectHandler(event:Event):void {
+            for (var i:int = 0; i < fileReferenceList.fileList.length; i++) {
+                var f:FileReference = FileReference(fileReferenceList.fileList[i]);
+                //每个文件对应的fileReference  监听上传成功后， 后台返回参数的事件
+                f.addEventListener(Event.COMPLETE, loadCompleteHandler);
+                f.load();
+            }
+            trace("selectHandler Called!");
+        }
+
+        // 本地预览
+        private function loadCompleteHandler(event:Event):void {
+            var loader:Loader = new Loader();
+            var file:FileReference = event.target as FileReference;
+            if (file.size > 1024 * 1024 * 5) {
+                Alert.show("文件不能超过5M.", "错误");
+                return;
+            }
+            loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function():void {
+                var bitmap:Bitmap = Bitmap(loader.content);
+                var ptn: Object = {
+                    bitmapData: bitmap.bitmapData,
+                    width: bitmap.width,
+                    height: bitmap.height,
+                    imageType: 'preview'
+                };
+
+                Global.patternList.push(new Pattern(ptn));
+                patternListCollection = new ArrayCollection(Global.patternList);
+
+                file.removeEventListener(Event.COMPLETE,loadCompleteHandler);
+            });
+            loader.loadBytes(event.target.data);
+            trace("loadCompleteHandler Called!");
+        }
+
+        ]]></fx:Script>
+
+    <s:BorderContainer
+            cornerRadius="5"
+            backgroundColor="white"
+            width="100%"
+            height="70%">
+        <s:VGroup gap="0" height="100%" width="100%" horizontalAlign="center" paddingTop="13">
+             <s:BorderContainer width="90%" backgroundColor="#428bca"
+                                borderVisible="false"
+                                cornerRadius="5"
+                                buttonMode="true"
+                                textAlign="center"
+                                height="30">
+                 <s:Label color="white"
+                          width="100%"
+                          fontSize="16"
+                          height="30"
+                          lineHeight="30"
+                          click="browse(event)"
+                          textAlign="center"
+                          verticalAlign="middle"
+                         >选择图片</s:Label>
+             </s:BorderContainer>
+
+            <s:Spacer height="13"/>
+
+            <s:BorderContainer backgroundAlpha="0" width="180" id="PatternListBC"
+                               creationComplete="PatternListBC.contentGroup.clipAndEnableScrolling=true"
+                               height="100%" borderVisible="false">
+                <s:List y="0" borderVisible="false" dataProvider="{patternListCollection}"
+                        useVirtualLayout="false" contentBackgroundAlpha="0"
+                        itemRenderer="views.PatternListItem"
+                        verticalScrollPolicy="off" horizontalScrollPolicy="off">
+                    <s:layout>
+                        <s:TileLayout requestedColumnCount="2"
+                                      horizontalGap="20"
+                                      verticalGap="15"/>
+                    </s:layout>
+                </s:List>
+            </s:BorderContainer>
+
+        </s:VGroup>
+    </s:BorderContainer>
+
+
+    <subpages:PatternInfo
+            width="100%"
+            height="30%" />
+</s:VGroup>

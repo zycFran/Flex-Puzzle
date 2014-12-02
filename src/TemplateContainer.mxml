@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<s:VGroup
+          width="100%" height="100%"
+          xmlns:fx="http://ns.adobe.com/mxml/2009"
+          xmlns:s="library://ns.adobe.com/flex/spark"
+          xmlns:mx="library://ns.adobe.com/flex/mx"
+          creationComplete="init_template()">
+
+    <fx:Script><![CDATA[
+        import events.Dispatcher;
+        import events.PieceEvent;
+
+        import models.Global;
+        import models.Piece;
+
+        import mx.collections.ArrayCollection;
+
+        [Bindable]
+        private var templateListCollection:ArrayCollection;
+
+        private function init_template():void{
+            Dispatcher.getInstance().addEventListener(PieceEvent.PIECE_INIT, function(e:PieceEvent):void{
+                templateListCollection = new ArrayCollection(Global.pieceList);
+            });
+            Dispatcher.getInstance().addEventListener(PieceEvent.LIST_HIDE, function(e:PieceEvent):void{
+                navLeft.visible = navLeft.includeInLayout = true;
+                navRight.visible = navRight.includeInLayout = false;
+                listBorderContainer.visible = listBorderContainer.includeInLayout = false;
+                paddingLeft=180;
+            });
+        }
+
+        private function navShowHandler():void{
+            if(navLeft.visible){
+                navLeft.visible = navLeft.includeInLayout = false;
+                navRight.visible = navRight.includeInLayout = true;
+                listBorderContainer.visible = listBorderContainer.includeInLayout = true;
+                paddingLeft=0;
+
+                Global.showRight = true;
+                Dispatcher.getInstance().dispatchEvent(new PieceEvent(PieceEvent.SHOW_RIGHT));
+            }else{
+                navLeft.visible = navLeft.includeInLayout = true;
+                navRight.visible = navRight.includeInLayout = false;
+                listBorderContainer.visible = listBorderContainer.includeInLayout = false;
+                paddingLeft=180;
+
+                Global.showRight = false;
+                Dispatcher.getInstance().dispatchEvent(new PieceEvent(PieceEvent.SHOW_RIGHT));
+            }
+        }
+
+        ]]></fx:Script>
+    <s:HGroup width="100%" height="100%" gap="-3" id="sHGroup">
+        <s:BorderContainer width="33"
+                           id="navBorderContainer"
+                           click="navShowHandler()"
+                           height="80"
+                           borderVisible="false"
+                           cornerRadius="5">
+            <s:Label width="33" textAlign="center" verticalAlign="middle"
+                     fontSize="16"
+                     text="模  版"
+                     height="74"/>
+            <s:Image source="@Embed(source='images/caret-left_428bca_32.png')" width="16"
+                     y="50"
+                     x="10"
+                     visible="false"
+                     includeInLayout="false"
+                     id="navLeft"
+                    />
+            <s:Image source="@Embed(source='images/caret-right_428bca_32.png')" width="16"
+                     y="50"
+                     x="10"
+                     id="navRight"
+                    />
+
+        </s:BorderContainer>
+        <s:BorderContainer
+                id="listBorderContainer"
+                borderVisible="false"
+                backgroundColor="white"
+                width="180"
+                height="100%">
+            <s:VGroup gap="0" height="100%" width="100%" horizontalAlign="center" paddingTop="10"
+                      paddingLeft="10">
+                <s:Spacer height="13"/>
+                <s:BorderContainer backgroundAlpha="0" width="100%" id="TempListBC"
+                                   creationComplete="TempListBC.contentGroup.clipAndEnableScrolling=true"
+                                   height="100%" borderVisible="false">
+                    <s:List y="0" borderVisible="false" dataProvider="{templateListCollection}"
+                            useVirtualLayout="false" contentBackgroundAlpha="0"
+                            itemRenderer="views.TemplateListItem"
+                            verticalScrollPolicy="off" horizontalScrollPolicy="off">
+                        <s:layout>
+                            <s:TileLayout requestedColumnCount="2"
+                                          horizontalGap="10"
+                                          verticalGap="10"/>
+                        </s:layout>
+                    </s:List>
+                </s:BorderContainer>
+            </s:VGroup>
+        </s:BorderContainer>
+    </s:HGroup>
+</s:VGroup>
